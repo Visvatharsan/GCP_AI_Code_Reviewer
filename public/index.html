@@ -10,6 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
       rel="stylesheet"
     />
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
       :root {
         --ink: #0d1117;
@@ -79,9 +80,15 @@
         max-width: 680px;
       }
 
-      .grid {
+      .grid-container {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      .results-grid {
         display: grid;
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
         gap: 24px;
       }
 
@@ -195,6 +202,44 @@
         margin: 0;
       }
 
+      .markdown-body {
+        background: var(--code-bg);
+        color: var(--code-ink);
+        border-radius: 16px;
+        padding: 18px;
+        min-height: 260px;
+        font-size: 14px;
+        border: 1px solid rgba(226, 232, 240, 0.12);
+        margin: 0;
+        line-height: 1.6;
+      }
+
+      .markdown-body p { margin-top: 0; margin-bottom: 12px; }
+      
+      .markdown-body code {
+        background: rgba(255,255,255,0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 13px;
+      }
+      
+      .markdown-body pre {
+        background: rgba(0,0,0,0.3);
+        border: none;
+        min-height: auto;
+        padding: 12px;
+      }
+      
+      .markdown-body ul, .markdown-body ol {
+        margin-top: 0;
+        padding-left: 20px;
+      }
+      
+      .markdown-body strong {
+        color: var(--accent-2);
+      }
+
       .hint {
         font-size: 12px;
         color: var(--muted);
@@ -233,6 +278,10 @@
         pre {
           min-height: 220px;
         }
+
+        .results-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -247,7 +296,7 @@
         </p>
       </header>
 
-      <section class="grid">
+      <section class="grid-container">
         <div class="panel">
           <h2>Paste your code</h2>
           <p>Supports multi-file snippets or single functions.</p>
@@ -270,10 +319,15 @@
           <p class="hint">Tip: Include file names or context comments for deeper reviews.</p>
         </div>
 
-        <div class="panel">
-          <h2>Review output</h2>
-          <p>We format the response for readability.</p>
-          <pre id="result">Your review will appear here.</pre>
+        <div class="results-grid">
+          <div class="panel">
+            <h2>Improved Code</h2>
+            <pre id="code-result">Your improved code will appear here.</pre>
+          </div>
+          <div class="panel">
+            <h2>Issues & Fixes</h2>
+            <div id="issues-result" class="markdown-body">Issues and fixes will appear here.</div>
+          </div>
         </div>
       </section>
     </div>
@@ -282,7 +336,8 @@
       const reviewBtn = document.getElementById("reviewBtn");
       const clearBtn = document.getElementById("clearBtn");
       const statusEl = document.getElementById("status");
-      const resultEl = document.getElementById("result");
+      const codeResultEl = document.getElementById("code-result");
+      const issuesResultEl = document.getElementById("issues-result");
       const codeEl = document.getElementById("code");
 
       function setStatus(message, isBusy) {
@@ -295,14 +350,16 @@
       async function review() {
         const code = codeEl.value.trim();
         if (!code) {
-          resultEl.innerText = "Paste some code to review.";
+          codeResultEl.innerText = "Paste some code to review.";
+          issuesResultEl.innerHTML = "Paste some code to review.";
           setStatus("Waiting for code", false);
           return;
         }
 
         reviewBtn.disabled = true;
         clearBtn.disabled = true;
-        resultEl.innerText = "Reviewing…";
+        codeResultEl.innerText = "Reviewing…";
+        issuesResultEl.innerHTML = "Reviewing…";
         setStatus("Analyzing code", true);
 
         try {
@@ -312,12 +369,21 @@
             body: JSON.stringify({ code }),
           });
 
-          const data = await res.text();
-          resultEl.innerText = data || "No feedback returned.";
+          const data = await res.json();
+          codeResultEl.innerText = typeof data.improvedCode === 'string' 
+            ? data.improvedCode 
+            : (JSON.stringify(data.improvedCode, null, 2) || "No improved code provided.");
+            
+          if (typeof data.issuesAndFixes === 'string') {
+            issuesResultEl.innerHTML = marked.parse(data.issuesAndFixes);
+          } else {
+            issuesResultEl.innerHTML = `<pre>${JSON.stringify(data.issuesAndFixes, null, 2) || "No issues found."}</pre>`;
+          }
           setStatus("Review complete", false);
         } catch (err) {
-          resultEl.innerText =
-            "Something went wrong while reviewing. Please try again.";
+          console.error(err);
+          codeResultEl.innerText = "Something went wrong while reviewing. Please try again.";
+          issuesResultEl.innerHTML = "Something went wrong while reviewing. Please try again.";
           setStatus("Request failed", false);
         } finally {
           reviewBtn.disabled = false;
@@ -327,7 +393,8 @@
 
       function clearAll() {
         codeEl.value = "";
-        resultEl.innerText = "Your review will appear here.";
+        codeResultEl.innerText = "Your improved code will appear here.";
+        issuesResultEl.innerHTML = "Issues and fixes will appear here.";
         setStatus("Ready for input", false);
       }
     </script>

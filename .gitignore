@@ -65,7 +65,7 @@ node_modules/
 # dotenv environment variables file
 .env
 .env.*
-!.env.example
+
 
 # Service account or secrets files
 **/serviceAccount*.json
